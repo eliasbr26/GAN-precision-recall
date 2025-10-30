@@ -53,12 +53,12 @@ def G_train(x, G, D, G_optimizer, criterion, device):
 
 
 def save_models(G, D, folder):
-    torch.save(G.state_dict(), os.path.join(folder,'G.pth'))
+    torch.save(G.state_dict(), os.path.join(folder,'GG.pth'))
     torch.save(D.state_dict(), os.path.join(folder,'D.pth'))
 
 
 def load_model(G, folder, device):
-    ckpt_path = os.path.join(folder,'G.pth')
+    ckpt_path = os.path.join(folder,'GG.pth')
     ckpt = torch.load(ckpt_path, map_location=device)
     G.load_state_dict({k.replace('module.', ''): v for k, v in ckpt.items()})
     return G
