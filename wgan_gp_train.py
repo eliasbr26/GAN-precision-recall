@@ -41,6 +41,18 @@ def weights_init_linear(m):
         if m.bias is not None:
             nn.init.zeros_(m.bias.data)
 
+
+def mirror_to_activated_discriminator(C_state_dict, d_input_dim=784, device=None):
+    """
+    Build the activated Discriminator and load weights from the WGAN critic (same fc layers).
+    Returns the model placed on `device` (if provided).
+    """
+    D_act = Discriminator_W(d_input_dim=d_input_dim)
+    D_act.load_state_dict(C_state_dict, strict=True)
+    if device is not None:
+        D_act = D_act.to(device)
+    return D_act
+
 # ---------------------------
 # Gradient Penalty (vector inputs)
 # ---------------------------
@@ -152,20 +164,17 @@ def train(args):
 
             # Save checkpoints
             if global_step % args.ckpt_every == 0 and global_step > 0:
+                D_act = mirror_to_activated_discriminator(C.state_dict(), d_input_dim=784)
                 torch.save(
                     {
                         "G": G.state_dict(),
-                        "C": C.state_dict(),
-                        "opt_G": opt_G.state_dict(),
-                        "opt_C": opt_C.state_dict(),
+                        "D": D_act.state_dict(),
                         "args": vars(args),
                         "step": global_step,
                         "epoch": epoch,
                     },
-                    os.path.join(ckpt_dir, f"ckpt_{global_step:06d}.pt"),
-                )
-
-            global_step += 1
+                    os.path.join(ckpt_dir, f"ckpt_{global_step:06d}.pt"),)
+                global_step += 1
 
         # End-of-epoch sample
         with torch.no_grad():
@@ -174,8 +183,9 @@ def train(args):
             vutils.save_image(grid, os.path.join(samples_dir, f"epoch_{epoch:03d}.png"))
 
     # Final save
-    torch.save({"G": G.state_dict(), "C": C.state_dict()}, os.path.join(ckpt_dir, "final.pt"))
-    print(f"Done. Samples -> {samples_dir} | Checkpoints -> {ckpt_dir}")
+    D_act = mirror_to_activated_discriminator(C.state_dict(), d_input_dim=784)
+    torch.save({"G": G.state_dict(), "D": D_act.state_dict()}, os.path.join(ckpt_dir, "final.pt"))
+    print(f"Done. Samples -> {samples_dir} | Checkpoints (G + activated D) -> {ckpt_dir}")
 
 
 def parse_args():
