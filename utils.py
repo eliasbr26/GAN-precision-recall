@@ -53,7 +53,7 @@ def G_train(x, G, D, G_optimizer, criterion, device):
 
 
 def save_models(G, D, folder):
-    torch.save(G.state_dict(), os.path.join(folder,'GG2.pth'))
+    torch.save(G.state_dict(), os.path.join(folder,'G_60000.pth'))
     torch.save(D.state_dict(), os.path.join(folder,'D.pth'))
 
 
