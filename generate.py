@@ -4,8 +4,8 @@ import os
 import argparse
 
 
-from model import Generator
-from utils import load_model
+from model import Generator, Discriminator  
+from utils import load_model, generate_samples_with_full_DRS
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate Normalizing Flow.')
@@ -29,11 +29,16 @@ if __name__ == '__main__':
     # Model Pipeline
     mnist_dim = 784
 
-    model = Generator(g_output_dim=mnist_dim).to(device)
-    model = load_model(model, 'checkpoints', device)
+    G = Generator(g_output_dim=mnist_dim).to(device)
+    G.load_state_dict(torch.load('checkpoints/G_60000.pth', map_location=device))
+    D = Discriminator(d_input_dim=mnist_dim).to(device)
+    D.load_state_dict(torch.load('checkpoints/D_60000.pth', map_location=device))
+
     if torch.cuda.device_count() > 1:
-        model = torch.nn.DataParallel(model)
-    model.eval()
+        G = torch.nn.DataParallel(G)
+        D = torch.nn.DataParallel(D)
+
+    samples = generate_samples_with_full_DRS(G, D, num_samples=10000, batch_size=args.batch_size)
 
     print('Model loaded.')
 
@@ -42,16 +47,10 @@ if __name__ == '__main__':
     print('Start Generating')
     os.makedirs('samples', exist_ok=True)
 
-    n_samples = 0
-    with torch.no_grad():
-        while n_samples<10000:
-            z = torch.randn(args.batch_size, 100).to(device)
-            x = model(z)
-            x = x.reshape(args.batch_size, 28, 28)
-            for k in range(x.shape[0]):
-                if n_samples<10000:
-                    torchvision.utils.save_image(x[k:k+1], os.path.join('samples', f'{n_samples}.png'))         
-                    n_samples += 1
+    for idx in range(samples.size(0)):
+        torchvision.utils.save_image(samples[idx].view(1, 28, 28),
+                          f'samples/{idx}.png',
+                          normalize=True)
 
 
     
