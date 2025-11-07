@@ -62,3 +62,65 @@ def load_model(G, folder, device):
     ckpt = torch.load(ckpt_path, map_location=device)
     G.load_state_dict({k.replace('module.', ''): v for k, v in ckpt.items()})
     return G
+
+
+def estimate_D_M(G, D, num_samples=10000, batch_size=128):
+    G.eval(); D.eval()
+    max_logit = -float('inf')
+    
+    with torch.no_grad():
+        for _ in range(num_samples // batch_size):
+            z = torch.randn(batch_size, 100).cuda()
+            x_fake = G(z)
+            D_logit = D(x_fake).squeeze()  # Logits (avant sigmoïde)
+            max_logit = max(max_logit, D_logit.max().item())
+    
+    G.train(); D.train()
+    return max_logit
+
+
+
+def generate_samples_with_full_DRS(G, D, num_samples, batch_size=128, epsilon=1e-6, target_percentile=80):
+    G.eval(); D.eval()
+    samples = []
+    total_generated = 0
+    total_attempted = 0
+
+    # 1. Estimer D_M
+    D_M = estimate_D_M(G, D, num_samples=10000, batch_size=batch_size)
+    print(f"Estimated D_M: {D_M:.4f}")
+
+    while total_generated < num_samples:
+        z = torch.randn(batch_size, 100).cuda()
+        with torch.no_grad():
+            x_fake = G(z)
+            D_logits = D(x_fake).squeeze()  # logit
+
+            # 2. Calculer F(x)
+            delta = D_logits - D_M
+            # Clamp pour éviter que exp(delta) > 1
+            delta = torch.clamp(delta, max=-1e-6)
+            F_x = delta - torch.log(1 - torch.exp(delta - epsilon))
+
+            # 3. Estimer gamma dynamiquement (80e percentile du batch)
+            gamma = torch.quantile(F_x, 1- target_percentile / 100.0).item()
+
+            # 4. Calculer la probabilité d’acceptation
+            F_hat = F_x - gamma
+            acceptance_probs = torch.sigmoid(F_hat)
+
+            # 5. Tirage d’acceptation
+            accept = torch.bernoulli(acceptance_probs).bool()
+            accepted_samples = x_fake[accept]
+            samples.append(accepted_samples.cpu())
+
+            total_generated += accepted_samples.size(0)
+            total_attempted += batch_size
+
+    acceptance_rate = total_generated / total_attempted
+    print(f"Acceptance Rate: {acceptance_rate:.4f}")
+
+    G.train(); D.train()
+
+    samples = torch.cat(samples, dim=0)[:num_samples]
+    return samples
