@@ -8,11 +8,7 @@ import torchvision.utils as vutils
 from model import Generator, Discriminator_W
 from utils import generate_samples_with_full_DRS
 
-def weight_file_paths(gen_name="GG1.pth", disc_name="DD.pth", folder="checkpoints"):
-    """
-    Return absolute paths to the generator and discriminator weight files.
-    Defaults to ./checkpoints/G_60000.pth and ./checkpoints/D_60000.pth.
-    """
+def weight_file_paths(gen_name="G_WGAN-GP_130", disc_name="D_WGAN-GP_130", folder="checkpoints"):
     g_path = os.path.join(folder, gen_name)
     d_path = os.path.join(folder, disc_name)
     return g_path, d_path
