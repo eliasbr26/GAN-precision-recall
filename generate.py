@@ -6,7 +6,7 @@ import torch
 import torchvision.utils as vutils
 
 from model import Generator, Discriminator_W
-from utils import generate_samples_with_full_DRS
+from utils import generate_samples_with_full_DRS, generate_samples_with_DRS
 
 def weight_file_paths(gen_name="G_WGAN-GP_130.pth", disc_name="D_WGAN-GP_130.pth", folder="checkpoints"):
     g_path = os.path.join(folder, gen_name)
@@ -75,7 +75,7 @@ def main():
     parser.add_argument("--out_dir", type=str, default="samples", help="Output folder for PNGs")
     parser.add_argument("--num_samples", type=int, default=1000, help="Number of accepted samples to generate")
     parser.add_argument("--batch_size", type=int, default=128, help="Proposals per iteration for DRS")
-    parser.add_argument("--tau", type=float, default=0.2, help="DRS threshold; higher = more selective")
+    parser.add_argument("--tau", type=float, default=10, help="DRS threshold; higher = more selective")
     parser.add_argument("--z_dim", type=int, default=100, help="Latent dimension (Generator expects 100)")
     parser.add_argument("--grid", action="store_true", help="Also save a grid preview image")
     args = parser.parse_args()
@@ -118,7 +118,6 @@ def main():
         C,
         num_samples=args.num_samples,
         batch_size=args.batch_size,
-        target_percentile=target_percentile,
     )
 
     # Save
