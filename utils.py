@@ -80,7 +80,7 @@ def estimate_D_M(G, D, num_samples=10000, batch_size=128):
 
 
 
-def generate_samples_with_full_DRS(G, D, num_samples, batch_size=128, epsilon=1e-6, target_percentile=80):
+def generate_samples_with_full_DRS(G, D, num_samples, batch_size=128, epsilon=1e-6, target_percentile=70):
     G.eval(); D.eval()
     samples = []
     total_generated = 0
@@ -99,8 +99,9 @@ def generate_samples_with_full_DRS(G, D, num_samples, batch_size=128, epsilon=1e
             # 2. Calculer F(x)
             delta = D_logits - D_M
             # Clamp pour éviter que exp(delta) > 1
-            delta = torch.clamp(delta, max=-1e-6)
-            F_x = delta - torch.log(1 - torch.exp(delta - epsilon))
+   
+            F_x = D_logits - torch.log(1 - torch.exp(delta) + epsilon)
+
 
             # 3. Estimer gamma dynamiquement (80e percentile du batch)
             gamma = torch.quantile(F_x, 1- target_percentile / 100.0).item()
@@ -124,3 +125,58 @@ def generate_samples_with_full_DRS(G, D, num_samples, batch_size=128, epsilon=1e
 
     samples = torch.cat(samples, dim=0)[:num_samples]
     return samples
+
+
+
+def generate_samples_with_DRS(G, D, num_samples, batch_size, tau):
+    G.eval()
+    D.eval()
+    samples = []
+    total_generated = 0
+    total_attempted = 0
+
+    while total_generated < num_samples:
+        # Generate latent vectors
+        z = torch.randn(batch_size, 100).cuda()
+        with torch.no_grad():
+            # Generate samples
+            x_fake = G(z)
+            # Compute discriminator logits
+            D_output = D(x_fake).squeeze()
+            # Compute acceptance probabilities
+            acceptance_probs = torch.sigmoid(D_output - tau)
+            # Sample from Bernoulli distribution
+            accept = torch.bernoulli(acceptance_probs).bool()
+            # Select accepted samples
+            accepted_samples = x_fake[accept]
+            samples.append(accepted_samples.cpu())
+            total_generated += accepted_samples.size(0)
+            total_attempted += batch_size
+        
+            # if total_generated != 0  and total_generated % 100 == 0:
+            #     print(f'Generated {total_generated}/{num_samples} samples')
+
+    acceptance_rate = total_generated / total_attempted
+    print(f'Acceptance Rate: {acceptance_rate:.4f}')
+
+    G.train()
+    D.train()
+
+    # Concatenate all accepted samples
+    samples = torch.cat(samples, dim=0)
+    # If more samples than needed, truncate
+    samples = samples[:num_samples]
+
+    return samples
+
+
+
+
+
+
+
+
+
+
+
+
