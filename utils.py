@@ -64,13 +64,17 @@ def load_model(G, folder, device):
     return G
 
 
-def estimate_D_M(G, D, num_samples=10000, batch_size=128):
+def estimate_D_M(G, D, GM = None, num_samples=10000, batch_size=128, device="cpu"):
     G.eval(); D.eval()
     max_logit = -float('inf')
     
     with torch.no_grad():
         for _ in range(num_samples // batch_size):
-            z = torch.randn(batch_size, 100).cuda()
+            if GM is not None:
+                z, _ = GM.sample(batch_size)
+                z = z.to(device)
+            else:
+                z = torch.randn(batch_size, 100).to(device)
             x_fake = G(z)
             D_logit = D(x_fake).squeeze()  # Logits (avant sigmoïde)
             max_logit = max(max_logit, D_logit.max().item())
@@ -80,18 +84,23 @@ def estimate_D_M(G, D, num_samples=10000, batch_size=128):
 
 
 
-def generate_samples_with_full_DRS(G, D, num_samples, batch_size=128, epsilon=1e-6, target_percentile=70):
+def generate_samples_with_full_DRS(G, D, num_samples, GM = None, batch_size=128, epsilon=1e-6, target_percentile=70):
+    device = next(G.parameters()).device
     G.eval(); D.eval()
     samples = []
     total_generated = 0
     total_attempted = 0
 
     # 1. Estimer D_M
-    D_M = estimate_D_M(G, D, num_samples=10000, batch_size=batch_size)
+    D_M = estimate_D_M(G, D, GM, num_samples=10000, batch_size=batch_size, device=device)
     print(f"Estimated D_M: {D_M:.4f}")
 
     while total_generated < num_samples:
-        z = torch.randn(batch_size, 100).cuda()
+        if GM is not None:
+            z, _ = GM.sample(batch_size)
+            z = z.to(device)
+        else:
+            z = torch.randn(batch_size, 100).to(device)
         with torch.no_grad():
             x_fake = G(z)
             D_logits = D(x_fake).squeeze()  # logit
@@ -99,8 +108,17 @@ def generate_samples_with_full_DRS(G, D, num_samples, batch_size=128, epsilon=1e
             # 2. Calculer F(x)
             delta = D_logits - D_M
             # Clamp pour éviter que exp(delta) > 1
+
+            # Clamp delta to prevent exp() from overflowing.
+            delta = torch.clamp(delta, max=20)  # exp(20) ≈ 4.8e8
+
+            # Also prevent 1 - exp(delta) from going negative
+            safe_term = 1 - torch.exp(delta)
+            safe_term = torch.clamp(safe_term, min=epsilon)
+
+            F_x = D_logits - torch.log(safe_term)
    
-            F_x = D_logits - torch.log(1 - torch.exp(delta) + epsilon)
+            # F_x = D_logits - torch.log(1 - torch.exp(delta) + epsilon)
 
 
             # 3. Estimer gamma dynamiquement (80e percentile du batch)

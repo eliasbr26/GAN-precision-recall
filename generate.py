@@ -7,12 +7,13 @@ import torchvision.utils as vutils
 
 from model import Generator, Discriminator_W
 from utils import generate_samples_with_full_DRS, generate_samples_with_DRS
+from GMM import GaussianMixture
 
-def weight_file_paths(gen_name="G_WGAN-GP_130.pth", disc_name="D_WGAN-GP_130.pth", folder="checkpoints"):
+def weight_file_paths(gen_name="G_WGAN-GP_130.pth", disc_name="D_WGAN-GP_130.pth", gmm_name="GMM_final.pt", folder="checkpoints"):
     g_path = os.path.join(folder, gen_name)
     d_path = os.path.join(folder, disc_name)
-    return g_path, d_path
-
+    gmm_path = os.path.join(folder, gmm_name)
+    return g_path, d_path, gmm_path
 
 
 def get_device(arg=None):
@@ -68,8 +69,9 @@ def main():
     parser.add_argument("--folder", type=str, default="checkpoints",
                         help="Folder to auto-discover weights (defaults to ./checkpoints)")
     src = parser.add_mutually_exclusive_group(required=False)
-    src.add_argument("--ckpt_path", type=str, default=None, help="Path to a single checkpoint dict that contains 'G' and 'C'")
+    src.add_argument("--ckpt_path", type=str, default='checkpoints/GM_WGAN.pt', help="Path to a single checkpoint dict that contains 'G' and 'C'")
     src.add_argument("--g_path", type=str, default=None, help="Path to Generator state_dict (.pth/.pt)")
+    parser.add_argument("--GM_path", type=str, default="checkpoints/GM_params.pt", help="Path to GMM parameters (.pt)")
     parser.add_argument("--c_path", type=str, default=None, help="Path to Critic (Discriminator_W) state_dict (.pth/.pt)")
     parser.add_argument("--device", type=str, default=None, help="cpu | cuda | mps (auto if omitted)")
     parser.add_argument("--out_dir", type=str, default="samples", help="Output folder for PNGs")
@@ -101,7 +103,7 @@ def main():
     if args.ckpt_path:
         print(f"[load] checkpoint: {args.ckpt_path}")
         load_weights(G, args.ckpt_path, device=device, pick="G")
-        load_weights(C, args.ckpt_path, device=device, pick="C")
+        load_weights(C, args.ckpt_path, device=device, pick="D")
     else:
         if args.g_path is None or args.c_path is None:
             raise ValueError("When using --g_path, you must also provide --c_path.")
@@ -110,12 +112,20 @@ def main():
         load_weights(G, args.g_path, device=device)
         load_weights(C, args.c_path, device=device)
 
+    # Load GMM if provided
+    if args.GM_path:
+        print(f"[load] GMM: {args.GM_path}")
+        GM = GaussianMixture.load(args.GM_path, device=device)
+    else:
+        GM = None
+
     # Generate with DRS (using logits from Discriminator_W)
     print(f"[DRS] Generating {args.num_samples} samples (tau={args.tau}, batch_size={args.batch_size})")
     target_percentile = int(args.tau * 100)
     samples = generate_samples_with_full_DRS(
         G,
         C,
+        GM=GM,
         num_samples=args.num_samples,
         batch_size=args.batch_size,
     )

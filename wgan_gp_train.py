@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms, utils as vutils
 
 from model import Generator, Discriminator_W
+from GMM import GaussianMixture
 
 
 def set_seed(seed: int):
@@ -25,8 +26,11 @@ def weights_init_linear(m):
 
 
 @torch.no_grad()
-def sample_grid(G, n=64, z_dim=100, device="cuda"):
-    z = torch.randn(n, z_dim, device=device)
+def sample_grid(G, n=64, z_dim=100, GM=None, device='cpu'):
+    if GM is not None:
+        z, _ = GM.sample(n)
+    else:
+        z = torch.randn(n, z_dim, device=device)
     fake = G(z).view(-1, 1, 28, 28).cpu()
     grid = vutils.make_grid(fake, nrow=8, normalize=True, value_range=(-1, 1))
     return grid
@@ -91,6 +95,7 @@ def train(args):
 
     G = Generator(g_output_dim=784).to(device)
     C = Discriminator_W(d_input_dim=784).to(device)
+    GM = GaussianMixture(n_components=args.n_components, c=args.c, sigma=args.sigma, device=device)
 
     G.apply(weights_init_linear)
     C.apply(weights_init_linear)
@@ -106,7 +111,7 @@ def train(args):
     os.makedirs(samples_dir, exist_ok=True)
     os.makedirs(ckpt_dir, exist_ok=True)
 
-    fixed_z = torch.randn(64, z_dim, device=device)
+    fixed_z, _ = GM.sample(64)
     global_step = 0
 
     G.train()
@@ -118,7 +123,7 @@ def train(args):
 
             # ----- Train Critic n_critic steps -----
             for _ in range(args.n_critic):
-                z = torch.randn(real.size(0), z_dim, device=device)
+                z, _ = GM.sample(real.size(0))
                 fake = G(z).detach()
 
                 C_real = C(real).mean()
@@ -134,7 +139,7 @@ def train(args):
                 opt_C.step()
 
             # ----- Train Generator (one step) -----
-            z = torch.randn(real.size(0), z_dim, device=device)
+            z, _ = GM.sample(real.size(0))
             fake = G(z)
             G_loss = -C(fake).mean()
 
@@ -151,7 +156,7 @@ def train(args):
             # Sample grid
             if global_step % args.sample_every == 0:
                 with torch.no_grad():
-                    grid = sample_grid(G, n=64, z_dim=z_dim, device=device)
+                    grid = sample_grid(G, n=64, z_dim=z_dim, device=device, GM=GM)
                     vutils.save_image(grid, os.path.join(samples_dir, f"step_{global_step:06d}.png"))
 
             # Checkpoint (periodic)
@@ -178,13 +183,14 @@ def train(args):
     # Final save
     D_act = mirror_to_activated_discriminator(C.state_dict(), d_input_dim=784)
     torch.save({"G": G.state_dict(), "D": D_act.state_dict()}, os.path.join(ckpt_dir, "final.pt"))
+    GM.save(os.path.join(ckpt_dir, "gmm_final.pt"))
     print(f"Done. Samples -> {samples_dir} | Checkpoints (G + activated D) -> {ckpt_dir}")
 
 
 def parse_args():
     p = argparse.ArgumentParser(description="Train WGAN-GP on MNIST with user's model.py")
     p.add_argument("--data_dir", type=str, default="./data")
-    p.add_argument("--out_dir", type=str, default="./runs/wgan_gp_mnist_model", help="output dir")
+    p.add_argument("--out_dir", type=str, default="./runs/gm_wgan_gp_mnist_model", help="output dir")
     p.add_argument("--epochs", type=int, default=200)
     p.add_argument("--batch_size", type=int, default=64)
     p.add_argument("--z_dim", type=int, default=100, help="latent dim; model.Generator is fixed at 100")
@@ -199,6 +205,10 @@ def parse_args():
     p.add_argument("--sample_every", type=int, default=500)
     p.add_argument("--ckpt_every", type=int, default=2000)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--n_components", type=int, default=10, help="Number of Gaussian components in GMM.")
+    p.add_argument("--c", type=float, default=1, help="Range for Gaussian component means.")
+    p.add_argument("--sigma", type=float, default=0.2, help="Standard deviation for Gaussian components.")
+    p.add_argument("--conditional_GAN", type=bool, default=False, help="Whether to use a conditional GAN setup.")
     return p.parse_args()
 
 
