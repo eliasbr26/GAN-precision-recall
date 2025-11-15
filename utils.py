@@ -80,7 +80,7 @@ def estimate_D_M(G, D, num_samples=10000, batch_size=128):
 
 
 
-def generate_samples_with_full_DRS(G, D, num_samples, batch_size=128, epsilon=1e-6, target_percentile=70):
+def generate_samples_with_full_DRS(G, D, num_samples, batch_size=128, epsilon=1e-6, target_percentile=15):
     G.eval(); D.eval()
     samples = []
     total_generated = 0
