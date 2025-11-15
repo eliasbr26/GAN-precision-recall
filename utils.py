@@ -84,7 +84,7 @@ def estimate_D_M(G, D, GM = None, num_samples=10000, batch_size=128, device="cpu
 
 
 
-def generate_samples_with_full_DRS(G, D, num_samples, GM = None, batch_size=128, epsilon=1e-6, target_percentile=70):
+def generate_samples_with_full_DRS(G, D, num_samples, GM = None, batch_size=128, epsilon=1e-6, target_percentile=15):
     device = next(G.parameters()).device
     G.eval(); D.eval()
     samples = []
