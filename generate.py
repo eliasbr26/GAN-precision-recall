@@ -75,7 +75,7 @@ def main():
     parser.add_argument("--c_path", type=str, default=None, help="Path to Critic (Discriminator_W) state_dict (.pth/.pt)")
     parser.add_argument("--device", type=str, default=None, help="cpu | cuda | mps (auto if omitted)")
     parser.add_argument("--out_dir", type=str, default="samples", help="Output folder for PNGs")
-    parser.add_argument("--num_samples", type=int, default=1000, help="Number of accepted samples to generate")
+    parser.add_argument("--num_samples", type=int, default=10000, help="Number of accepted samples to generate")
     parser.add_argument("--batch_size", type=int, default=128, help="Proposals per iteration for DRS")
     parser.add_argument("--tau", type=float, default=10, help="DRS threshold; higher = more selective")
     parser.add_argument("--z_dim", type=int, default=100, help="Latent dimension (Generator expects 100)")
