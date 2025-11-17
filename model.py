@@ -36,15 +36,20 @@ class Discriminator(nn.Module):
 
 
 class Discriminator_W(nn.Module):
-    def __init__(self, d_input_dim):
+    def __init__(self, d_input_dim, conditional=False):
         super().__init__()
+        self.conditional = conditional
         self.fc1 = nn.Linear(d_input_dim, 1024)
         self.fc2 = nn.Linear(self.fc1.out_features, self.fc1.out_features//2)
         self.fc3 = nn.Linear(self.fc2.out_features, self.fc2.out_features//2)
         self.fc4 = nn.Linear(self.fc3.out_features, 1)
 
     # forward method (no sigmoid for WGAN-style critic)
-    def forward(self, x):
+    def forward(self, x, labels=None):
+        if self.conditional and labels is not None:
+            one_hot = F.one_hot(labels, num_classes=10).float()
+            labels = one_hot.to(x.device)
+            x = torch.cat([x, labels], dim=1)
         x = F.leaky_relu(self.fc1(x), 0.2)
         x = F.leaky_relu(self.fc2(x), 0.2)
         x = F.leaky_relu(self.fc3(x), 0.2)

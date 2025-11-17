@@ -23,7 +23,10 @@ class GaussianMixture:
         torch.manual_seed(seed)
 
         # Initialize component means μ_k uniformly in [-c, c]
-        self.mu = torch.empty(n_components, z_dim).uniform_(-c, c).to(device)
+        if c == 0:
+            self.mu = torch.zeros(n_components, z_dim).to(device)
+        else:
+            self.mu = torch.empty(n_components, z_dim).uniform_(-c, c).to(device)
         # Shared covariance (isotropic)
         self.sigma_tensor = sigma * torch.ones(z_dim, device=device)
 
