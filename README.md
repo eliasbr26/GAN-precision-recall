@@ -1,10 +1,120 @@
 # GAN Precision/Recall Trade-off Analysis
 
+# Project Summary: Learning Latent Representations and Image Generation
+
 ## Overview
+This project focuses on generating high-quality and diverse images of handwritten digits from the MNIST dataset. The team explores different Generative Adversarial Network (GAN) formulations and several methodological extensions aimed at improving two key metrics:
+- **Accuracy** — how realistic the generated samples are.
+- **Recall** — how diverse the generated samples are.
 
-This project explores the evaluation of Generative Adversarial Networks (GANs) through the lens of precision and recall metrics. Traditional GAN evaluation methods like Fréchet Inception Distance (FID) provide a single scalar value that conflates different aspects of generation quality. This project implements and analyzes precision and recall metrics that separately measure the quality (precision) and diversity (recall) of generated samples.
+The report details a progression from standard GANs to more sophisticated variants based on the Wasserstein distance, along with latent-space and sampling improvements. The final model achieves major gains in both accuracy and recall.
 
-The project demonstrates how these complementary metrics reveal trade-offs in GAN training, showing that models can optimize for either realistic samples (high precision) or diverse coverage of the data distribution (high recall), but achieving both simultaneously remains challenging. Through experiments on standard datasets, we analyze different GAN architectures and training strategies to understand and visualize this fundamental trade-off.
+## Goals
+- Overcome the classical weaknesses of Vanilla GANs: mode collapse, training instability, and vanishing gradients.
+- Improve the diversity and sample quality of generated digits.
+- Design a unified pipeline where multiple improvements can be combined.
+
+---
+
+## Methods
+
+### 1. Vanilla GAN Limitations
+Vanilla GANs suffer from:
+- **Mode collapse**: generator produces only a few repeated modes.
+- **Non-convergence**: adversarial dynamics oscillate instead of stabilizing.
+- **Vanishing gradients**: discriminator saturation prevents generator learning.
+
+These issues motivate switching to Wasserstein-based approaches.
+
+### 2. Wasserstein GAN (WGAN)
+WGAN replaces the Jensen–Shannon divergence with the **Earth Mover (Wasserstein-1) distance**, offering:
+- Smoother gradients
+- Better stability
+- More meaningful critic feedback
+
+It imposes a **1-Lipschitz constraint** on the critic, originally enforced via **weight clipping**.
+
+### 3. WGAN with Weight Clipping
+- Weight clipping ensures Lipschitzness but is crude.
+- Too small clipping ⇒ underfitting critic, weak gradients.
+- Too large clipping ⇒ unstable training.
+- After experimentation, the team used clipping value **c = 0.09**.
+
+### 4. WGAN-GP (Wasserstein GAN with Gradient Penalty)
+Gradient Penalty replaces weight clipping by directly constraining the critic's gradient norm:
+- Enforces ‖∇x f(x)‖ ≈ 1 along real-fake interpolation paths.
+- Produces smoother critic landscapes.
+- Easier hyperparameter tuning.
+- Better mode coverage and training stability.
+
+This method consistently outperformed weight clipping and spectral normalization.
+
+### 5. Spectral Normalization (SN)
+Spectral normalization rescales each weight matrix according to its spectral norm, also promoting Lipschitzness.
+- Faster training
+- However, the critic is less expressive than in WGAN-GP
+- Did **not** outperform WGAN-GP in final metrics
+
+### 6. Gaussian Mixture Latent Priors (GMM)
+Instead of sampling from a single Gaussian, the latent vector comes from a **K-component Gaussian mixture**.
+Benefits:
+- Better alignment between latent space and multimodal data distribution
+- Supports generator specialization per mode
+- Improves diversity and reduces collapse
+
+### 7. Conditional WGAN-GP
+Conditioning the generator and critic on labels (digit classes):
+- Simplifies the Wasserstein estimation problem
+- Improves semantic structure in generated images
+- Produces sharper, more coherent samples
+
+### 8. Combining GMM + Conditioning
+Bringing together latent multimodality and label conditioning:
+- Stronger mode separation
+- Better coverage and stability
+- Full compatibility with WGAN-GP
+
+### 9. Discriminator Rejection Sampling (DRS)
+DRS is applied **after** training, as a post-processing step:
+- Discriminator logits approximate the likelihood ratio p_data / p_gen
+- Samples are accepted with probabilities derived from this ratio
+- Filters out low-quality images
+
+Because the WGAN critic is not probabilistic, a small calibration network is trained to output sigmoid logits usable for DRS.
+
+The team targeted ~20% acceptance to balance quality and diversity.
+
+---
+
+## Results
+Final comparison:
+
+| Model | Time (s) | FID | Accuracy | Recall |
+|-------|---------|-----|----------|--------|
+| Vanilla GAN | - | - | 0.52 | 0.23 |
+| WGAN (weight clipping) | - | - | 0.50 | 0.27 |
+| **WGAN-GP** | 77 | 45 | 0.53 | 0.29 |
+| WGAN-SN + DRS | 105 | 52 | 0.50 | 0.44 |
+| **WGAN-GP + DRS** | **240** | **62** | **0.67** | **0.62** |
+
+Key conclusions:
+- WGAN-GP is the strongest base model.
+- Conditioning and GMM both enhance diversity and structure.
+- DRS significantly boosts sample quality and recall.
+- The best final setup is **WGAN-GP + Conditioning + DRS**.
+
+---
+
+## Conclusion
+The project demonstrates that principled modifications to GAN objectives, Lipschitz constraints, latent priors, and sampling strategies can dramatically improve generative performance. The final system generates MNIST digits with strong visual fidelity, high accuracy, and broad mode coverage.
+
+The progression clearly shows:
+1. Replace JS divergence → **Wasserstein loss**
+2. Replace clipping → **gradient penalty**
+3. Improve latent structure → **Gaussian mixtures + conditioning**
+4. Refine outputs → **discriminator rejection sampling**
+
+This layered pipeline results in a robust, high-performing generative model.
 
 ## Precision and Recall in GAN Evaluation
 
@@ -91,64 +201,17 @@ Options:
 - `--lr`: Learning rate
 - `--save_dir`: Directory to save model checkpoints (default: `./models`)
 
-### 3. Evaluating Precision and Recall
-
-Compute precision and recall metrics for a trained model:
-
-```bash
-python src/evaluate.py --model_path ./models/gan_checkpoint.pth --num_samples 10000
-```
-
-This will output:
-- Precision and recall scores
-- Precision-recall curve
-- Visualization of generated samples
-- Comparison with real data distribution
-
-Options:
-- `--model_path`: Path to trained model checkpoint
-- `--num_samples`: Number of samples to generate for evaluation
-- `--output_dir`: Directory to save evaluation results (default: `./results`)
-
-### 4. Visualizing Results
-
-Generate plots comparing different models:
-
-```bash
-python src/visualize.py --results_dir ./results --output precision_recall_comparison.png
-```
-
-## Example Workflow
-
-Complete workflow to train and evaluate a GAN:
-
-```bash
-# 1. Prepare the dataset
-python src/prepare_data.py --dataset cifar10 --data_dir ./data
-
-# 2. Train the GAN
-python src/train.py --dataset cifar10 --epochs 100 --batch_size 64 --save_dir ./models
-
-# 3. Evaluate precision and recall
-python src/evaluate.py --model_path ./models/gan_checkpoint_epoch100.pth --num_samples 10000 --output_dir ./results
-
-# 4. Visualize results
-python src/visualize.py --results_dir ./results --output ./results/comparison.png
-```
-
 ## Key Scripts
 
 - **`src/train.py`**: Main training loop for GAN models. Supports different architectures and datasets.
 - **`src/evaluate.py`**: Computes precision and recall metrics using k-nearest neighbors in feature space.
-- **`src/metrics.py`**: Implementation of precision/recall computation, FID, and other evaluation metrics.
-- **`src/visualize.py`**: Generates plots and visualizations of results.
+
 
 ## Results
 
 Results including:
 - Generated sample images
 - Precision-recall curves
-- Metric evolution during training
 - Comparative analysis of different models
 
 are saved in the `./results` directory after running the evaluation scripts.
