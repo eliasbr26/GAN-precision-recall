@@ -178,28 +178,14 @@ Key dependencies include:
 
 ## Usage
 
-### 1. Dataset Preparation
-
-Download and prepare your dataset (e.g., MNIST, CIFAR-10, CelebA):
-
-```bash
-python src/prepare_data.py --dataset cifar10 --data_dir ./data
-```
-
-### 2. Training a GAN
+### Training a GAN
 
 Train a GAN model with default settings:
 
 ```bash
-python src/train.py --dataset cifar10 --epochs 100 --batch_size 64 --lr 0.0002
+python src/train.py 
 ```
 
-Options:
-- `--dataset`: Dataset name (mnist, cifar10, celeba)
-- `--epochs`: Number of training epochs
-- `--batch_size`: Batch size for training
-- `--lr`: Learning rate
-- `--save_dir`: Directory to save model checkpoints (default: `./models`)
 
 ## Key Scripts
 
@@ -214,16 +200,6 @@ Results including:
 - Precision-recall curves
 - Comparative analysis of different models
 
-are saved in the `./results` directory after running the evaluation scripts.
-
-## References
-
-For detailed methodology, experimental setup, and analysis, please refer to `report.pdf`.
-
-Key references:
-- Goodfellow et al. (2014): Generative Adversarial Networks
-- Sajjadi et al. (2018): Assessing Generative Models via Precision and Recall
-- Kynkäänniemi et al. (2019): Improved Precision and Recall Metric for Assessing Generative Models
 
 ## License
 
