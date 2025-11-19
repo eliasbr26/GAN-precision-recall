@@ -4,7 +4,7 @@
 
 ## Overview
 This project focuses on generating high-quality and diverse images of handwritten digits from the MNIST dataset. The team explores different Generative Adversarial Network (GAN) formulations and several methodological extensions aimed at improving two key metrics:
-- **Accuracy** — how realistic the generated samples are.
+- **Precision** — how realistic the generated samples are.
 - **Recall** — how diverse the generated samples are.
 
 The report details a progression from standard GANs to more sophisticated variants based on the Wasserstein distance, along with latent-space and sampling improvements. The final model achieves major gains in both accuracy and recall.
