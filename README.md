@@ -1,82 +1,171 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/SQRTf064)
-# DataLabAssignement2
+# GAN Precision/Recall Trade-off Analysis
 
-## Using GPUs with MesoNet
+## Overview
 
-### 1. Access MesoNet
-To use the provided GPUs, you must first:
-- Create a MesoNet account and request access to the project.
-- Once accepted, add your SSH key to MesoNet for secure access. Follow the instructions [here](https://www.mesonet.fr/documentation/user-documentation/code_form/juliet/connexion).
+This project explores the evaluation of Generative Adversarial Networks (GANs) through the lens of precision and recall metrics. Traditional GAN evaluation methods like Fréchet Inception Distance (FID) provide a single scalar value that conflates different aspects of generation quality. This project implements and analyzes precision and recall metrics that separately measure the quality (precision) and diversity (recall) of generated samples.
 
-### 2. Set Up Your Environment
-On Juliet (MesoNet's cluster), you need to:
+The project demonstrates how these complementary metrics reveal trade-offs in GAN training, showing that models can optimize for either realistic samples (high precision) or diverse coverage of the data distribution (high recall), but achieving both simultaneously remains challenging. Through experiments on standard datasets, we analyze different GAN architectures and training strategies to understand and visualize this fundamental trade-off.
 
-1. Create a virtual environment for Python:
-   ```bash
-   python -m venv venv
-   ```
+## Precision and Recall in GAN Evaluation
 
-2. Activate the environment:
-   ```bash
-   source venv/bin/activate
-   ```
+### What are Precision and Recall for GANs?
 
-3. Install the required dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+- **Precision**: Measures the fraction of generated samples that are realistic (i.e., lie within the support of the real data distribution). High precision means the model produces high-quality, realistic samples, but may lack diversity.
 
-### 3. Run Training or Generation
-- Use the provided shell scripts (`scripts/train.sh` or `scripts/generate.sh`) to launch jobs.
-- These scripts will automatically activate the virtual environment (`venv`).
-- If you don't use Juliet cluster, please provide a data_path argument for the training scripts. Otherwise, everything should be automated.
+- **Recall**: Measures the fraction of the real data distribution that is covered by generated samples. High recall means the model captures the diversity of real data, but may produce some unrealistic samples.
 
-### 4. Hardware Compatibility
-The code is compatible with:
-- **NVIDIA GPUs (CUDA)**
-- **Apple Silicon (MPS, for M1/M2/M3/M4 chips)**
-- **CPU-only mode** (not recommended for performance)
+### Why This Trade-off Matters
 
-We recommend using CUDA (for NVIDIA GPUs) or MPS (for Apple Silicon).
+- A **high precision, low recall** model generates very realistic images but fails to capture the full diversity of the dataset (mode collapse).
+- A **low precision, high recall** model covers the data distribution well but may produce lower quality or unrealistic samples.
+- **FID alone** cannot distinguish between these failure modes, as it provides only a single aggregated score.
 
-### 5. Slurm Resources
-- If you need help with Slurm (MesoNet's job scheduler), there will be a Slurm lecture on 29/10/2025 or refer to the official documentation: [Slurm Documentation](https://slurm.schedmd.com/documentation.html).
+By separately tracking precision and recall, we can better understand model behavior, diagnose specific failure modes, and guide improvements in GAN architectures and training procedures.
 
-### 6. Example Commands
-To submit a job to MesoNet:
-```bash
-# Make the script executable
-chmod +x scripts/train.sh
+## Installation
 
-# Submit the job to Slurm
-scripts/train.sh
-```
-## train.py
-This script performs adversarial training for a GAN. Before running it, ensure the `DATA` variable in `scripts/train.sh` points to your dataset directory. If left unchanged, the script will create a default `data` folder in the repository root. If you use Juliet, no changes are required—the default path is already configured. You can adjust the learning rate, number of epochs, and batch size directly in `scripts/train.sh`.
+### Requirements
 
-## generate.py
-Use the file *generate.py* to generate 10000 samples of MNIST in the folder samples. You can launch this script on juliet with `scripts/generate.sh`
+- Python 3.7+
+- PyTorch 1.8+
+- CUDA (recommended for GPU acceleration)
 
-Example:
-  > python3 generate.py --bacth_size 64
+### Dependencies
 
-or 
+Install the required packages:
 
 ```bash
-# Make the script executable
-chmod +x scripts/generate.sh
-
-# Submit the job to Slurm
-scripts/generate.sh
+pip install -r requirements.txt
 ```
 
-## requirements.txt
-Among the good pratice of datascience, we encourage you to use conda or virtualenv to create python environment. 
-To test your code on our platform, you are required to update the *requirements.txt*, with the different librairies you might use. 
-When your code will be test, we will execute: 
-  > pip install -r requirements.txt
+Key dependencies include:
+- `torch` and `torchvision`
+- `numpy`
+- `matplotlib`
+- `scikit-learn`
+- `scipy`
+- `tqdm`
+- `pillow`
 
+## Project Structure
 
-## Checkpoints
-Push the minimal amount of models in the folder *checkpoints*.
+```
+.
+├── README.md                 # This file
+├── report.pdf               # Detailed project report
+├── requirements.txt         # Python dependencies
+├── data/                    # Dataset directory
+├── models/                  # Trained GAN models and checkpoints
+├── results/                 # Generated images and evaluation results
+├── src/
+│   ├── gan.py              # GAN architecture implementations
+│   ├── train.py            # Training scripts
+│   ├── evaluate.py         # Precision/recall evaluation
+│   ├── metrics.py          # Metric computation utilities
+│   └── utils.py            # Helper functions
+└── notebooks/              # Jupyter notebooks for analysis
+```
 
+## Usage
+
+### 1. Dataset Preparation
+
+Download and prepare your dataset (e.g., MNIST, CIFAR-10, CelebA):
+
+```bash
+python src/prepare_data.py --dataset cifar10 --data_dir ./data
+```
+
+### 2. Training a GAN
+
+Train a GAN model with default settings:
+
+```bash
+python src/train.py --dataset cifar10 --epochs 100 --batch_size 64 --lr 0.0002
+```
+
+Options:
+- `--dataset`: Dataset name (mnist, cifar10, celeba)
+- `--epochs`: Number of training epochs
+- `--batch_size`: Batch size for training
+- `--lr`: Learning rate
+- `--save_dir`: Directory to save model checkpoints (default: `./models`)
+
+### 3. Evaluating Precision and Recall
+
+Compute precision and recall metrics for a trained model:
+
+```bash
+python src/evaluate.py --model_path ./models/gan_checkpoint.pth --num_samples 10000
+```
+
+This will output:
+- Precision and recall scores
+- Precision-recall curve
+- Visualization of generated samples
+- Comparison with real data distribution
+
+Options:
+- `--model_path`: Path to trained model checkpoint
+- `--num_samples`: Number of samples to generate for evaluation
+- `--output_dir`: Directory to save evaluation results (default: `./results`)
+
+### 4. Visualizing Results
+
+Generate plots comparing different models:
+
+```bash
+python src/visualize.py --results_dir ./results --output precision_recall_comparison.png
+```
+
+## Example Workflow
+
+Complete workflow to train and evaluate a GAN:
+
+```bash
+# 1. Prepare the dataset
+python src/prepare_data.py --dataset cifar10 --data_dir ./data
+
+# 2. Train the GAN
+python src/train.py --dataset cifar10 --epochs 100 --batch_size 64 --save_dir ./models
+
+# 3. Evaluate precision and recall
+python src/evaluate.py --model_path ./models/gan_checkpoint_epoch100.pth --num_samples 10000 --output_dir ./results
+
+# 4. Visualize results
+python src/visualize.py --results_dir ./results --output ./results/comparison.png
+```
+
+## Key Scripts
+
+- **`src/train.py`**: Main training loop for GAN models. Supports different architectures and datasets.
+- **`src/evaluate.py`**: Computes precision and recall metrics using k-nearest neighbors in feature space.
+- **`src/metrics.py`**: Implementation of precision/recall computation, FID, and other evaluation metrics.
+- **`src/visualize.py`**: Generates plots and visualizations of results.
+
+## Results
+
+Results including:
+- Generated sample images
+- Precision-recall curves
+- Metric evolution during training
+- Comparative analysis of different models
+
+are saved in the `./results` directory after running the evaluation scripts.
+
+## References
+
+For detailed methodology, experimental setup, and analysis, please refer to `report.pdf`.
+
+Key references:
+- Goodfellow et al. (2014): Generative Adversarial Networks
+- Sajjadi et al. (2018): Assessing Generative Models via Precision and Recall
+- Kynkäänniemi et al. (2019): Improved Precision and Recall Metric for Assessing Generative Models
+
+## License
+
+This project is for educational and research purposes.
+
+## Contact
+
+For questions or issues, please open an issue in the repository or contact the project maintainer.
